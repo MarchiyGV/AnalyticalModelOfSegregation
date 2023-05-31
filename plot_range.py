@@ -9,9 +9,12 @@ k = 1.380649e-23*Na*1e-3 #kJK-1/mol
 T = 300
 eV2kJmol = 96.4915666370759
 
-fgb = 0.32
+fgbs = np.array([31.5,30.6,28.6])/100
 
-datas = ['range2', 'large', '5g', 'reverse',  'nonint']
+#datas = ['5g', 'nonint', 'range2', 'large', 'reverse']
+datas = ['sample1', 'sample2', 'sample3', 'sample1ni', 'sample2ni', 'sample3ni']
+#fgbs = np.array([31.5])/100
+#datas = ['sample1', 'sample1ni']
 titles = datas#['with s-s interaction', 'without s-s interaction']
 #Ni
 sigma = 17.16141009
@@ -48,12 +51,12 @@ def f(E, mu, sigma, alpha):
 
 Fs = f(Egb, mu, sigma, alpha)
 
-def Xgb_func(g1, Fs, Es, mu_e, T, xgb):
-    xs = 1/(1+np.exp((Es+g1-mu_e)/(k*T)))
+def Xgb_func(g1, Fs, Es, T, xgb):
+    xs = 1/(1+np.exp((Es-g1)/(k*T)))
     return np.sum(xs*Fs)-xgb
 
-def Egb_func(Fs, Es, mu_e, g1, T):
-    xs = 1/(1+np.exp((Es+g1-mu_e)/(k*T)))
+def Egb_func(Fs, Es, g1, T):
+    xs = 1/(1+np.exp((Es-g1)/(k*T)))
     return np.sum(xs*Es*Fs)
 
 full_U = []
@@ -64,7 +67,8 @@ full_mu = []
 
 for di, data in enumerate(datas):
     df = pd.read_csv(f'{data}.txt', comment='#')
-    s = (df['c']<=2)
+    fgb = fgbs[di%len(fgbs)]
+    s = (df['c']/fgb<=9)
     cs = df['c'].values[s]/100
     if c_cluster:
         c_ind = np.sum(cs<c_cluster)
@@ -83,11 +87,11 @@ for di, data in enumerate(datas):
             mu_e = mus[i]
             
             
-            g1 = fsolve(Xgb_func, [mu_e], (Fs, Egb, mu_e, T, xgb))
+            g1 = fsolve(Xgb_func, [0], (Fs, Egb, T, xgb))
             g1s.append(g1[0])
             #print(Xgb_func(g1, Fs, Egb, mu_e, T, xgb))
             
-            g2 = Us[i] - (c*(Eb-Ea+Eba*(1-c)*(1-c)+Eab*c*(1-c)) + fgb*(Egb_func(Fs, Egb, mu_e, g1, T)))
+            g2 = Us[i] - (c*(Eb-Ea+Eba) + fgb*(Egb_func(Fs, Egb, g1, T)))
             g2s.append(g2)
             
             #Wgb = (g2+g1*(1-fgb)*dmu/cosh)/(fgb+(1-fgb)*dmu/cosh)
@@ -99,7 +103,7 @@ for di, data in enumerate(datas):
     g2s = np.array(g2s)
     
     xgb = cs[1:]/fgb
-    xc = 1/(1+np.exp((g1s-mus[1:])/k/T))
+    xc = 1/(1+np.exp(-g1s/k/T))
     xc_c = (xc[1:]+xc[:-1])/2
     
     zgb = np.polyfit(xgb, Wgbs, 2)
@@ -110,7 +114,7 @@ for di, data in enumerate(datas):
     dWgbs = (Wgbs[1:]-Wgbs[:-1])/(xgb[1:]-xgb[:-1])
     xgb_c = (xgb[1:]+xgb[:-1])/2
     
-    dWcs = ((g1s[:1]+g1s[1:])/2 - (g2s[:1]-g2s[1:])/(xgb[1:]-xgb[:-1]))/(1-fgb)
+    dWcs = ((mus[1:-1]+mus[2:])/2 - (g1s[:-1]+g1s[1:])/2 - (g2s[:-1]-g2s[1:])/(xgb[1:]-xgb[:-1]))/(1-fgb)
     dzc = np.polyfit(xc_c, dWcs, 1)
     dpc = np.poly1d(dzc)
     zc = np.array([dzc[0]/2, dzc[1], 0])
@@ -135,6 +139,7 @@ for di, data in enumerate(datas):
     plt.subplot(222)
     plt.title('Interaction energy')
     #plt.plot(xgb*100, Wgbs)
+    #pgb = (lambda x: -87*x*x - 2*x)
     plt.plot(xgb*100, pgb(xgb), '--', label='$ W_{gb} = '+f'{round(zgb[0])} x^2 {round(zgb[1])} x'+'$')
     plt.plot(xgb*100, Wgbs, '.')
     
@@ -190,6 +195,7 @@ U = []
 Wgb = []
 g1 = []
 mu = []
+plots = []
 cmin, cmax = [], []
 for cs in full_c:
     cmin.append(cs.min())
@@ -202,15 +208,23 @@ for i, data in enumerate(datas):
     Wgb.append(interpolate.interp1d(full_c[i], full_Wgb[i]))
     g1.append(interpolate.interp1d(full_c[i], full_g1[i]))
     mu.append(interpolate.interp1d(full_c[i], full_mu[i]))
-    plt.plot(c*100, Wgb[-1](c), label=data)
+    if i<len(fgbs):
+        p = plt.plot(c*100, Wgb[-1](c), label=data)
+        plots.append(p)
 
 
-
-Wgb = (U[0](c) - U[1](c))/fgb
-plt.plot(c*100, Wgb)
-z = np.polyfit(c/fgb, Wgb, 2)
-p = np.poly1d(z)
-plt.plot(c*100, p(c/fgb), linestyle='--', color='grey', label='comp')
+for i in range(len(fgbs)):
+    fgb = fgbs[i]
+    Wgb = (U[i](c) - U[i+len(fgbs)](c))/fgb
+    print(f'{datas[i]} {datas[i+len(fgbs)]}')
+    
+    #plt.plot(c*100, Wgb, color=, linestyle='-.')
+    z = np.polyfit(c/fgb, Wgb, 2)
+    p = np.poly1d(z)
+    print(z)
+    plt.plot(c*100, p(c/fgb), linestyle='--', color=plots[i][0].get_color(), 
+             label=f'${round(z[0], 2)}x^2 + {round(z[1], 2)}x$')
+plt.ylabel('Wgb')
 
 plt.legend()
 plt.show()
