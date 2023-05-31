@@ -1,3 +1,23 @@
+"""
+Author: Georgiy Marchiy
+
+This program solves equilibrium equation for GB segregation for different 
+temperatures and concetrations.
+
+Input parameters: sigma, alpha, mu, gamma, Eba - form 
+https://www.sciencedirect.com/science/article/abs/pii/S1359645421005577
+(supplementary materials)
+
+Wgb1, Wgb2 - from MD simulations 
+
+---
+
+Equation with solute-solute interaction has sometimes bad convergence, for
+this reason program tries to adjust initial guess gradually increasing
+solute-solute interaction, however, it not always solve the problem.  
+Convergence can be reached through manual adjusting initial guess in small
+regions of Xtot, T
+"""
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.special import erfc
@@ -18,7 +38,7 @@ sigma = 17.16141009
 alpha = 0.703617558
 mu = -25.9113993 # mean-energy
 gamma = 9.32376616 # k*\gamma - per-atom grain boundary energy
-Eba_md =  67.29501539 # E B in A
+Eba =  67.29501539 # E B in A
 a = 1# 1 if exists solute-solute interaction, 0 otherwise
 
 
@@ -27,17 +47,16 @@ a = 1# 1 if exists solute-solute interaction, 0 otherwise
 # alpha = -2.35401727
 # mu = -13.0040431
 # gamma = 17.6527277
-# Eba_md =  158.4459242
+# Eba =  158.4459242
 # a = 0
 
 
-Eba = Eba_md
 #interaction parameters: W_{xi} = W_{xi}_1*X_{xi} + W_{xi}_2*X_{xi}^2
 Wgb1 = -1.7*a
 Wgb2 = -98.3*a
 
-dWc1 = 0
-dWc2 = 0
+Wc1 = 0
+Wc2 = 0
     
 
 mu_new00 = np.array([-30]) #initial guess for mu
@@ -76,11 +95,11 @@ def dFgb(x, alpha):
 
 @njit(cache=True)
 def Fc(x, alpha):
-    return alpha*(dWc1*x + x**2*dWc2/2)
+    return alpha*(Wc1*x + x**2*Wc2/2)
 
 @njit(cache=True)
 def dFc(x, alpha):
-    return alpha*(dWc1 + x*dWc2)
+    return alpha*(Wc1 + x*Wc2)
 
 @njit(cache=True)
 def xgb_func(mu, Fs, Egb, T, x):
