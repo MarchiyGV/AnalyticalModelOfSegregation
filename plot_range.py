@@ -11,11 +11,10 @@ eV2kJmol = 96.4915666370759
 
 fgbs = np.array([31.5,30.6,28.6])/100
 
-#datas = ['5g', 'nonint', 'range2', 'large', 'reverse']
 datas = ['sample1', 'sample2', 'sample3', 'sample1ni', 'sample2ni', 'sample3ni']
 #fgbs = np.array([31.5])/100
 #datas = ['sample1', 'sample1ni']
-titles = datas#['with s-s interaction', 'without s-s interaction']
+titles = datas
 #Ni
 sigma = 17.16141009
 alpha = 0.703617558
